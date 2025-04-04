@@ -165,3 +165,37 @@ app.get('/tasks', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+app.put('/tasks/:id', async (req, res) => {
+  const taskId = req.params.id;
+  const dataToUpdate = req.body;
+  try {
+    const updatedTask = await Task.findByIdAndUpdate(taskId, dataToUpdate, {
+      new: true,
+    });
+
+    if (!updatedTask) {
+      res.status(404).json({ error: `Task with ID ${taskId} not found.` });
+    }
+    res.status(200).json(updatedTask);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.delete('/tasks/:id', async (req, res) => {
+  const taskId = req.params.id;
+  try {
+    const deleteTask = await Task.findByIdAndDelete(taskId);
+
+    if (!deleteTask) {
+      res.status(404).json({ error: `Task with ID ${taskId} not found.` });
+    }
+
+    res.status(200).json({
+      message: 'Task deleted successfully',
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
