@@ -90,6 +90,35 @@ app.get('/owners', async (req, res) => {
   }
 });
 
+//add members to team
+app.put('/teams/:id/owners', async (req, res) => {
+  const team = req.params.id;
+  const members = req.body;
+  console.log(team, members);
+  try {
+    const updatedTeam = await Team.findByIdAndUpdate(team, members, {
+      new: true,
+    });
+    // console.log(updatedTeam);
+
+    res.status(200).json(updatedTeam);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/teams/:id/owners', async (req, res) => {
+  const team = req.params.id;
+  try {
+    console.log(team);
+    const allMembers = await Team.findOne({ _id: team }).populate('members');
+    // console.log(allMembers);
+    res.status(200).json(allMembers);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 //tag
 app.post('/tags', async (req, res) => {
   const { name } = req.body;
@@ -136,7 +165,7 @@ app.post('/tasks', async (req, res) => {
 app.get('/tasks', async (req, res) => {
   const { name, project, team, owners, tags, status } = req.query;
   try {
-    console.log(name, project, team, owners, tags, status);
+    // console.log(name, project, team, owners, tags, status);
     const filter = {};
     if (name) {
       filter.name = name;
