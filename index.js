@@ -199,9 +199,13 @@ app.put('/tasks/:id', async (req, res) => {
   const taskId = req.params.id;
   const dataToUpdate = req.body;
   try {
-    const updatedTask = await Task.findByIdAndUpdate(taskId, dataToUpdate, {
-      new: true,
-    });
+    const updatedTask = await Task.findByIdAndUpdate(
+      taskId,
+      { ...dataToUpdate, updatedAt: new Date() },
+      {
+        new: true,
+      }
+    );
 
     if (!updatedTask) {
       res.status(404).json({ error: `Task with ID ${taskId} not found.` });
@@ -224,6 +228,108 @@ app.delete('/tasks/:id', async (req, res) => {
     res.status(200).json({
       message: 'Task deleted successfully',
     });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+//reporting
+app.get('/report/last-week-completed', async (req, res) => {
+  try {
+    const completedTasks = await Task.find({ status: 'Completed' });
+
+    const sevenDaysAgoDate = new Date();
+    sevenDaysAgoDate.setDate(sevenDaysAgoDate.getDate() - 7);
+    console.log(sevenDaysAgoDate);
+
+    const lastWeekCompletedTasks = completedTasks.filter(
+      (task) => task.updatedAt >= sevenDaysAgoDate
+    );
+    console.log(lastWeekCompletedTasks);
+    res.status(200).json(lastWeekCompletedTasks);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// app.get('/report/pending', async (req, res) => {
+//   try {
+//     const allTasks = await Task.find().populate('project');
+
+//     const projects = allTasks.reduce((acc, curr) => {
+//       const projectName = curr.project.name;
+//       if (curr.status !== 'Completed') {
+//         if (!acc[projectName]) {
+//           acc[projectName] = 0;
+//         }
+//         acc[projectName] = acc[projectName] + curr.timeToComplete;
+//       }
+//       return acc;
+//     }, {});
+//     console.log(projects);
+
+//     res.status(200).json(projects);
+//   } catch (error) {
+//     res.status(500).json({ error: 'Internal server error' });
+//   }
+// });
+
+app.get('/report/pending', async (req, res) => {
+  try {
+    const allTasks = await Task.find();
+    const pendingWork = allTasks.reduce(
+      (acc, curr) => acc + curr.timeToComplete,
+      0
+    );
+    console.log(pendingWork);
+
+    const completedTasks = await Task.find({ status: 'Completed' });
+    console.log(completedTasks.length);
+    // res.status(200).json(pendingWork);
+    res.status(200).json({
+      daysOfPendingWork: pendingWork,
+      totalCompletedTasks: completedTasks.length,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/report/closed-by-team', async (req, res) => {
+  try {
+    const completedTasks = await Task.find({ status: 'Completed' }).populate(
+      'team'
+    );
+    const totalTasks = completedTasks.reduce((acc, curr) => {
+      const teamName = curr.team.name;
+      acc[teamName] = (acc[teamName] || 0) + 1;
+      return acc;
+    }, {});
+    console.log(totalTasks);
+    res.status(200).json(totalTasks);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/report/closed-by-owner', async (req, res) => {
+  try {
+    const completedTasks = await Task.find({ status: 'Completed' }).populate(
+      'owners'
+    );
+
+    const totalTasks = completedTasks.reduce((acc, curr) => {
+      // console.log(curr);
+      curr.owners.forEach((owner) => {
+        const onweName = owner.name;
+        acc[onweName] = (acc[onweName] || 0) + 1;
+      });
+      // console.log('acc:', acc);
+      return acc;
+    }, {});
+
+    // console.log(totalTasks);
+    res.status(200).json(totalTasks);
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }
