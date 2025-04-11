@@ -1,15 +1,17 @@
 require('dotenv').config();
 const { initializeDatabase } = require('./db/db.connect');
-const mongoose = require('mongoose');
 const express = require('express');
 const cors = require('cors');
 const PORT = process.env.PORT || 3000;
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
 const Team = require('./models/team.model');
 const Project = require('./models/project.model');
 const Owner = require('./models/owner.model');
 const ProjectTag = require('./models/tag.model');
 const Task = require('./models/task.model');
+const UserData = require('./models/user.model');
 
 const app = express();
 
@@ -330,6 +332,118 @@ app.get('/report/closed-by-owner', async (req, res) => {
 
     // console.log(totalTasks);
     res.status(200).json(totalTasks);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+//register
+app.post('/auth/signup', async (req, res) => {
+  const { username, email, password } = req.body;
+  try {
+    if (!username || !email || !password) {
+      res.status(400).json({ message: 'All fields are required' });
+    } else {
+      const existingUser = await UserData.findOne({ email });
+      if (existingUser) {
+        res.status(400).json({ message: 'Email is already registered.' });
+      } else {
+        const newUser = new UserData({ username, email, password });
+        newUser.password = await bcrypt.hash(password, 10);
+        await newUser.save();
+        res
+          .status(201)
+          .json({ message: 'Registration Successful!!!', newUser });
+      }
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+//login
+app.post('/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    if (!email || !password) {
+      res.status(400).json({ message: 'All fields are required' });
+    } else {
+      const existingUser = await UserData.findOne({ email });
+
+      if (
+        !existingUser ||
+        !(await bcrypt.compare(password, existingUser.password))
+      ) {
+        res.status(400).json({
+          message: 'Invalid Credentials - either email or password is wrong.',
+        });
+      } else {
+        const token = jwt.sign(
+          {
+            id: existingUser._id,
+            email: existingUser.email,
+          },
+          process.env.JWT_SECRET,
+          { expiresIn: '24h' }
+        );
+
+        res.status(200).json({ message: 'Login Successful!!!', token });
+      }
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/users', async (req, res) => {
+  try {
+    const allUsers = await UserData.find();
+    res.status(200).json(allUsers);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+//middleware to validate jwt token for protected routes
+const verifyJWT = (req, res, next) => {
+  //checks req headers has authorization or not
+  const token = req.headers['authorization'];
+
+  if (!token) {
+    return res.status(401).json({ message: 'No token provided' });
+  }
+
+  try {
+    console.log(token);
+
+    //verify jwt token
+    const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
+    //attached user information that pass to token while login to req object
+    console.log('decoded token: ', decodedToken);
+    req.user = decodedToken;
+    next();
+  } catch (error) {
+    return res
+      .status(401)
+      .json({ message: 'Invalid token or token is expired.' });
+  }
+};
+
+//protected route
+app.get('/auth/me', verifyJWT, async (req, res) => {
+  // const userDetails = req.user;
+  // console.log(userDetails);
+  const userId = req.user.id;
+
+  try {
+    const user = await UserData.findOne({ _id: userId });
+    console.log(user);
+
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+    } else {
+      res.status(200).json(user);
+    }
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }
